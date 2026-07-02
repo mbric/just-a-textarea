@@ -243,6 +243,139 @@
       opacity: 1;
       transform: translateX(-50%) translateY(0);
     }
+
+    .icon-btn {
+      width: 1.75rem;
+      height: 1.75rem;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.875rem;
+      font-weight: 600;
+      line-height: 1;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+    }
+
+    .icon-btn:hover {
+      color: var(--text);
+      border-color: var(--muted);
+    }
+
+    .help-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: rgba(0, 0, 0, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .help-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .help-panel {
+      width: min(28rem, 100%);
+      max-height: calc(100vh - 3rem);
+      overflow-y: auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    }
+
+    .help-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+    }
+
+    .help-title {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    .help-close {
+      width: 1.75rem;
+      height: 1.75rem;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.125rem;
+      line-height: 1;
+      border-radius: 6px;
+    }
+
+    .help-section {
+      margin-bottom: 1.25rem;
+    }
+
+    .help-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .help-section h2 {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .help-section p,
+    .help-section li {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.875rem;
+      line-height: 1.55;
+      color: var(--text);
+    }
+
+    .help-section ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .help-section li {
+      padding-left: 1rem;
+      position: relative;
+    }
+
+    .help-section li::before {
+      content: '·';
+      position: absolute;
+      left: 0;
+      color: var(--muted);
+    }
+
+    .help-kbd {
+      display: inline-block;
+      font-family: ui-monospace, monospace;
+      font-size: 0.75rem;
+      padding: 0.1rem 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--border);
+      color: var(--text);
+    }
   </style>
 </head>
 <body>
@@ -250,8 +383,8 @@
     <span class="brand">just a textarea</span>
     <span class="stats" id="stats"></span>
     <div class="actions">
+      <button type="button" class="icon-btn" id="help-btn" title="Help" aria-label="Help">?</button>
       <button type="button" id="copy-btn" title="Copy all (⌘C when focused)">Copy</button>
-      <button type="button" id="clear-btn" title="Clear">Clear</button>
     </div>
   </header>
 
@@ -270,6 +403,44 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <div class="help-overlay" id="help-overlay" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
+    <div class="help-panel">
+      <div class="help-header">
+        <h1 class="help-title" id="help-title">Just a Textarea</h1>
+        <button type="button" class="help-close" id="help-close" aria-label="Close help">×</button>
+      </div>
+
+      <div class="help-section">
+        <h2>What it does</h2>
+        <p>A full-screen plain text editor. Paste rich text from anywhere — formatting is stripped automatically so you get clean text ready to use.</p>
+      </div>
+
+      <div class="help-section">
+        <h2>How to use</h2>
+        <ul>
+          <li>Paste into the editor — text is stripped and copied to your clipboard</li>
+          <li>After pasting, the editor auto-clears in 10 seconds so you're ready for the next paste</li>
+          <li>Click <strong>+</strong> for a fresh session, or pick a recent paste from the bar below</li>
+          <li>Click <strong>Copy</strong> to copy what's in the editor</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <h2>Keyboard shortcuts</h2>
+        <ul>
+          <li><span class="help-kbd">⌘/Ctrl + C</span> Copy (when the editor is focused)</li>
+          <li><span class="help-kbd">⌘/Ctrl + K</span> Clear the editor</li>
+          <li><span class="help-kbd">Esc</span> Close this help panel</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <h2>Privacy</h2>
+        <p>Everything stays in your browser. Text is saved locally — nothing is sent to a server.</p>
+      </div>
+    </div>
+  </div>
+
   <script>
     const STORAGE_KEY = 'jat-content';
     const HISTORY_KEY = 'jat-history';
@@ -280,7 +451,9 @@
     const stats = document.getElementById('stats');
     const toast = document.getElementById('toast');
     const copyBtn = document.getElementById('copy-btn');
-    const clearBtn = document.getElementById('clear-btn');
+    const helpBtn = document.getElementById('help-btn');
+    const helpOverlay = document.getElementById('help-overlay');
+    const helpClose = document.getElementById('help-close');
     const historyList = document.getElementById('history-list');
     const newSessionBtn = document.getElementById('new-session-btn');
 
@@ -474,7 +647,7 @@
       clearEditor();
     }
 
-    async function selectHistoryItem(id) {
+    function selectHistoryItem(id) {
       const item = history.find((h) => h.id === id);
       if (!item) return;
 
@@ -486,9 +659,6 @@
       save();
       updateStats();
       renderHistory();
-
-      await copyText(item.text);
-      showToast('Copied from history');
       editor.focus();
     }
 
@@ -536,15 +706,32 @@
       }, 1500);
     });
 
-    clearBtn.addEventListener('click', () => {
-      if (!editor.value) return;
-      if (!confirm('Clear all text?')) return;
-      cancelAutoClear();
-      hideToast();
-      clearEditor();
+    function openHelp() {
+      helpOverlay.hidden = false;
+      requestAnimationFrame(() => helpOverlay.classList.add('show'));
+      helpClose.focus();
+    }
+
+    function closeHelp() {
+      helpOverlay.classList.remove('show');
+      helpOverlay.addEventListener('transitionend', () => {
+        if (!helpOverlay.classList.contains('show')) helpOverlay.hidden = true;
+      }, { once: true });
+      helpBtn.focus();
+    }
+
+    helpBtn.addEventListener('click', openHelp);
+    helpClose.addEventListener('click', closeHelp);
+    helpOverlay.addEventListener('click', (e) => {
+      if (e.target === helpOverlay) closeHelp();
     });
 
     document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && helpOverlay.classList.contains('show')) {
+        e.preventDefault();
+        closeHelp();
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         cancelAutoClear();
