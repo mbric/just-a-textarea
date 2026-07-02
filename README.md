@@ -14,7 +14,7 @@ Then visit http://localhost:8080
 
 ## Deploy (free, ~2 minutes)
 
-This is a single static file — no build step. **Cloudflare Pages** is the best free option: unlimited bandwidth, free SSL, and a short subdomain at `jat.pages.dev`.
+This is a single static file — no build step. **Cloudflare Pages** is the best free option: unlimited bandwidth, free SSL, and a short subdomain at `jatxt.pages.dev`.
 
 ### Option A — One command (fastest)
 
@@ -23,14 +23,14 @@ npx wrangler login          # first time only
 ./deploy.sh
 ```
 
-Your site goes live at **https://jat.pages.dev**.
+Your site goes live at **https://jatxt.pages.dev**.
 
 ### Option B — GitHub + Cloudflare Pages (auto-deploy on push)
 
 1. Push this repo to GitHub (`gh auth login` if needed, then `gh repo create just-a-textarea --public --source=. --push`)
 2. Go to [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
 3. Select the repo, leave build settings empty (no build command, output directory `/`)
-4. Deploy — set the project name to `jat` for **https://jat.pages.dev**
+4. Deploy — set the project name to `jatxt` for **https://jatxt.pages.dev**
 
 ### Option C — Netlify drag-and-drop (no CLI)
 

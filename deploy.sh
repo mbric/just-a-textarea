@@ -8,8 +8,8 @@ echo ""
 echo "First time only: npx wrangler login"
 echo ""
 
-npx wrangler pages deploy . --project-name=jat --branch=main
+npx wrangler pages deploy . --project-name=jatxt --branch=main
 
 echo ""
-echo "Done. Your site will be at https://jat.pages.dev"
+echo "Done. Your site will be at https://jatxt.pages.dev"
 echo "Add a custom domain in the Cloudflare dashboard → Pages → Custom domains."
