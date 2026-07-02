@@ -127,6 +127,39 @@
       min-width: 0;
     }
 
+    .pace-pill {
+      flex-shrink: 1;
+      min-width: 0;
+      max-width: 14rem;
+      padding: 0.25rem 0.55rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 500;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+
+    .pace-pill:hover {
+      color: var(--text);
+      border-color: var(--muted);
+      background: var(--border);
+    }
+
+    .pace-pill.has-projection {
+      color: var(--accent);
+      border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    }
+
+    .pace-pill.has-projection:hover {
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+    }
+
     .new-session-btn {
       flex-shrink: 0;
       width: 1.75rem;
@@ -376,6 +409,80 @@
       background: var(--border);
       color: var(--text);
     }
+
+    .help-muted {
+      font-size: 0.8125rem !important;
+      color: var(--muted) !important;
+      margin-top: 0.5rem;
+    }
+
+    .help-highlight {
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .pace-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-start;
+      padding: 0 1rem calc(var(--history-h) + 0.5rem);
+      background: transparent;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .pace-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .pace-panel {
+      width: min(22rem, 100%);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.125rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    }
+
+    .pace-panel-title {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 0.625rem;
+    }
+
+    .pace-panel-headline {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      line-height: 1.35;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin-bottom: 0.375rem;
+    }
+
+    .pace-panel-sub {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      color: var(--text);
+      margin-bottom: 0.75rem;
+    }
+
+    .pace-panel-note {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.75rem;
+      line-height: 1.45;
+      color: var(--muted);
+    }
   </style>
 </head>
 <body>
@@ -396,6 +503,7 @@
   ></textarea>
 
   <footer class="history-bar">
+    <button type="button" class="pace-pill" id="pace-pill" title="Time reclaimed">Paste to see time reclaimed</button>
     <button type="button" class="new-session-btn active" id="new-session-btn" title="New session">+</button>
     <span class="history-label">Recent</span>
     <div class="history-list" id="history-list"></div>
@@ -434,6 +542,12 @@
         </ul>
       </div>
 
+      <div class="help-section" id="help-reclaimed-section">
+        <h2>Time reclaimed</h2>
+        <p id="help-reclaimed-body">Paste a few times — we'll estimate how much time you reclaim vs stripping text the slow way.</p>
+        <p class="help-muted" id="help-reclaimed-note"></p>
+      </div>
+
       <div class="help-section">
         <h2>Privacy</h2>
         <p>Everything stays in your browser. Text is saved locally — nothing is sent to a server.</p>
@@ -441,11 +555,26 @@
     </div>
   </div>
 
+  <div class="pace-overlay" id="pace-overlay" role="dialog" aria-modal="true" aria-labelledby="pace-panel-title" hidden>
+    <div class="pace-panel">
+      <div class="pace-panel-title" id="pace-panel-title">Time reclaimed</div>
+      <div class="pace-panel-headline" id="pace-panel-headline"></div>
+      <div class="pace-panel-sub" id="pace-panel-sub"></div>
+      <div class="pace-panel-note" id="pace-panel-note"></div>
+    </div>
+  </div>
+
   <script>
     const STORAGE_KEY = 'jat-content';
     const HISTORY_KEY = 'jat-history';
+    const STATS_KEY = 'jat-stats';
     const AUTO_CLEAR_SECONDS = 10;
     const MAX_HISTORY = 30;
+    const SECONDS_SAVED_PER_STRIP = 12;
+    const WORK_HOURS_PER_DAY = 8;
+    const WORK_DAYS_PER_YEAR = 250;
+    const MIN_STRIPS_FOR_PROJECTION = 2;
+    const MIN_SESSION_MS_FOR_PROJECTION = 3 * 60 * 1000;
 
     const editor = document.getElementById('editor');
     const stats = document.getElementById('stats');
@@ -454,8 +583,15 @@
     const helpBtn = document.getElementById('help-btn');
     const helpOverlay = document.getElementById('help-overlay');
     const helpClose = document.getElementById('help-close');
+    const helpReclaimedBody = document.getElementById('help-reclaimed-body');
+    const helpReclaimedNote = document.getElementById('help-reclaimed-note');
     const historyList = document.getElementById('history-list');
     const newSessionBtn = document.getElementById('new-session-btn');
+    const pacePill = document.getElementById('pace-pill');
+    const paceOverlay = document.getElementById('pace-overlay');
+    const pacePanelHeadline = document.getElementById('pace-panel-headline');
+    const pacePanelSub = document.getElementById('pace-panel-sub');
+    const pacePanelNote = document.getElementById('pace-panel-note');
 
     let history = [];
     let saveTimer;
@@ -465,6 +601,9 @@
     let autoClearInterval = null;
     let autoClearSecondsLeft = 0;
     let activeHistoryId = null;
+    let sessionStart = Date.now();
+    let stripCount = 0;
+    let lifetimeStrips = 0;
 
     function load() {
       try {
@@ -479,6 +618,165 @@
         history = [];
       }
       renderHistory();
+      loadStats();
+      updateReclaimedUI();
+    }
+
+    function loadStats() {
+      try {
+        const saved = localStorage.getItem(STATS_KEY);
+        if (saved) {
+          const data = JSON.parse(saved);
+          lifetimeStrips = Number(data.lifetimeStrips) || 0;
+        }
+      } catch (_) {
+        lifetimeStrips = 0;
+      }
+    }
+
+    function saveStats() {
+      try {
+        localStorage.setItem(STATS_KEY, JSON.stringify({ lifetimeStrips }));
+      } catch (_) {}
+    }
+
+    function formatDuration(seconds) {
+      if (seconds < 60) return `~${Math.max(1, Math.round(seconds))} sec`;
+      const minutes = seconds / 60;
+      if (minutes < 60) return minutes < 10 ? `~${minutes.toFixed(1)} min` : `~${Math.round(minutes)} min`;
+      const hours = minutes / 60;
+      return hours < 10 ? `~${hours.toFixed(1)} hrs` : `~${Math.round(hours)} hrs`;
+    }
+
+    function formatAnnualHours(hours) {
+      if (hours < 1) return formatDuration(hours * 3600) + '/year';
+      return hours < 10 ? `~${hours.toFixed(1)} hrs/year` : `~${Math.round(hours)} hrs/year`;
+    }
+
+    function yearlyEquivalent(hours) {
+      if (hours < 2) return 'about a long lunch break';
+      if (hours < 8) return 'a few afternoons';
+      if (hours < 16) return 'a full workday';
+      if (hours < 24) return 'a long weekend';
+      return 'a whole week away from random text boxes';
+    }
+
+    function getReclaimedStats() {
+      const sessionMs = Date.now() - sessionStart;
+      const sessionHours = sessionMs / 3600000;
+      const sessionSecondsSaved = stripCount * SECONDS_SAVED_PER_STRIP;
+      const canProject = stripCount >= MIN_STRIPS_FOR_PROJECTION
+        && sessionMs >= MIN_SESSION_MS_FOR_PROJECTION;
+
+      let annualHours = null;
+      if (canProject) {
+        const pastesPerHour = stripCount / Math.max(sessionHours, 0.1);
+        const pastesPerWorkDay = pastesPerHour * WORK_HOURS_PER_DAY;
+        const annualPastes = pastesPerWorkDay * WORK_DAYS_PER_YEAR;
+        annualHours = (annualPastes * SECONDS_SAVED_PER_STRIP) / 3600;
+      }
+
+      return {
+        sessionMs,
+        stripCount,
+        sessionSecondsSaved,
+        canProject,
+        annualHours,
+        lifetimeStrips,
+        lifetimeSecondsSaved: lifetimeStrips * SECONDS_SAVED_PER_STRIP,
+      };
+    }
+
+    function recordStrip() {
+      stripCount++;
+      lifetimeStrips++;
+      saveStats();
+      updateReclaimedUI();
+    }
+
+    function updateReclaimedUI() {
+      const data = getReclaimedStats();
+      const sessionBack = formatDuration(data.sessionSecondsSaved);
+      const stripLabel = data.stripCount === 1 ? '1 strip' : `${data.stripCount} strips`;
+
+      pacePill.classList.toggle('has-projection', data.canProject);
+
+      if (data.stripCount === 0) {
+        pacePill.textContent = 'Paste to see time reclaimed';
+      } else if (data.canProject) {
+        pacePill.textContent = `At this pace · ${formatAnnualHours(data.annualHours).replace('/year', '')}/year reclaimed`;
+      } else {
+        pacePill.textContent = `${stripLabel} · ${sessionBack} back`;
+      }
+
+      if (data.stripCount === 0) {
+        helpReclaimedBody.textContent = 'Paste a few times — we\'ll estimate how much time you reclaim vs stripping text the slow way.';
+        helpReclaimedNote.textContent = '';
+      } else if (!data.canProject) {
+        helpReclaimedBody.innerHTML = `This session: <span class="help-highlight">${stripLabel} · ${sessionBack}</span> vs the slow way (find a text box, paste, select all, copy, clear, repeat).`;
+        const remaining = Math.max(0, MIN_STRIPS_FOR_PROJECTION - data.stripCount);
+        const minsLeft = Math.max(0, Math.ceil((MIN_SESSION_MS_FOR_PROJECTION - data.sessionMs) / 60000));
+        const hints = [];
+        if (remaining > 0) hints.push(`${remaining} more strip${remaining === 1 ? '' : 's'}`);
+        if (minsLeft > 0) hints.push(`${minsLeft} more minute${minsLeft === 1 ? '' : 's'}`);
+        helpReclaimedNote.textContent = hints.length
+          ? `Keep going — annual pace estimate after ${hints.join(' and ')}.`
+          : 'Almost there — annual pace estimate unlocks soon.';
+      } else {
+        const annual = formatAnnualHours(data.annualHours);
+        helpReclaimedBody.innerHTML = `At this pace, you're on track to reclaim <span class="help-highlight">${annual.replace('/year', '')}</span> per year — ${yearlyEquivalent(data.annualHours)} you won't spend stripping text in tools not built for it.`;
+        helpReclaimedNote.textContent = `This session: ${stripLabel} · ${sessionBack}. Based on ~${SECONDS_SAVED_PER_STRIP} sec saved per strip, your pace today, ${WORK_HOURS_PER_DAY}-hour workdays, and ${WORK_DAYS_PER_YEAR} workdays/year. Counts stay on your device.`;
+      }
+
+      if (data.lifetimeStrips > data.stripCount) {
+        const lifetimeBack = formatDuration(data.lifetimeSecondsSaved);
+        const lifetimeLine = `All time: ${data.lifetimeStrips} strips · ${lifetimeBack} reclaimed.`;
+        helpReclaimedNote.textContent = helpReclaimedNote.textContent
+          ? `${helpReclaimedNote.textContent} ${lifetimeLine}`
+          : lifetimeLine;
+      }
+
+      if (paceOverlay.classList.contains('show')) {
+        updatePacePanel(data);
+      }
+    }
+
+    function updatePacePanel(data = getReclaimedStats()) {
+      const sessionBack = formatDuration(data.sessionSecondsSaved);
+      const stripLabel = data.stripCount === 1 ? '1 strip' : `${data.stripCount} strips`;
+
+      if (data.stripCount === 0) {
+        pacePanelHeadline.textContent = 'Paste to start the clock';
+        pacePanelSub.textContent = 'Each strip here skips the slow ritual: hunt for a text box, paste, select all, copy, go back, clear, repeat.';
+        pacePanelNote.textContent = `We estimate ~${SECONDS_SAVED_PER_STRIP} seconds saved per strip vs tools not built for this.`;
+        return;
+      }
+
+      if (!data.canProject) {
+        pacePanelHeadline.textContent = `${sessionBack} back this session`;
+        pacePanelSub.textContent = `${stripLabel} so far — vs navigating to a generic site, select-all-copy, and clearing between pastes.`;
+        pacePanelNote.textContent = 'Annual pace appears after a few strips and a few minutes in this session.';
+        return;
+      }
+
+      const annual = formatAnnualHours(data.annualHours).replace('/year', '');
+      pacePanelHeadline.textContent = `On pace for ${annual} reclaimed per year`;
+      pacePanelSub.textContent = `${stripLabel} this session · ${sessionBack} back today · that's ${yearlyEquivalent(data.annualHours)}.`;
+      pacePanelNote.textContent = `~${SECONDS_SAVED_PER_STRIP} sec saved per strip × your pace today × ${WORK_HOURS_PER_DAY}-hour workdays × ${WORK_DAYS_PER_YEAR} workdays/year. Stays on your device.`;
+    }
+
+    function openPacePanel() {
+      updatePacePanel();
+      paceOverlay.hidden = false;
+      requestAnimationFrame(() => paceOverlay.classList.add('show'));
+      pacePill.focus();
+    }
+
+    function closePacePanel() {
+      paceOverlay.classList.remove('show');
+      paceOverlay.addEventListener('transitionend', () => {
+        if (!paceOverlay.classList.contains('show')) paceOverlay.hidden = true;
+      }, { once: true });
     }
 
     function save() {
@@ -675,6 +973,7 @@
         await copyText(text);
         addToHistory(text);
         pastePending = false;
+        if (text.trim()) recordStrip();
         startAutoClearCountdown();
       }, 100);
     });
@@ -707,6 +1006,7 @@
     });
 
     function openHelp() {
+      updateReclaimedUI();
       helpOverlay.hidden = false;
       requestAnimationFrame(() => helpOverlay.classList.add('show'));
       helpClose.focus();
@@ -726,7 +1026,17 @@
       if (e.target === helpOverlay) closeHelp();
     });
 
+    pacePill.addEventListener('click', openPacePanel);
+    paceOverlay.addEventListener('click', (e) => {
+      if (e.target === paceOverlay) closePacePanel();
+    });
+
     document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && paceOverlay.classList.contains('show')) {
+        e.preventDefault();
+        closePacePanel();
+        return;
+      }
       if (e.key === 'Escape' && helpOverlay.classList.contains('show')) {
         e.preventDefault();
         closeHelp();
@@ -742,6 +1052,8 @@
 
     load();
     updateStats();
+    updateReclaimedUI();
+    setInterval(updateReclaimedUI, 30000);
     editor.focus();
   </script>
 </body>
