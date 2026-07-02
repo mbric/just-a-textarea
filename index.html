@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="A full-screen plain text area. Paste to strip formatting.">
+  <meta name="theme-color" content="#faf9f7">
+  <title>Just a Textarea</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23faf9f7'/><rect x='6' y='9' width='20' height='2' rx='1' fill='%23666'/><rect x='6' y='15' width='20' height='2' rx='1' fill='%23666'/><rect x='6' y='21' width='14' height='2' rx='1' fill='%23666'/></svg>">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #faf9f7;
+      --text: #1a1a1a;
+      --muted: #888;
+      --border: #e8e6e3;
+      --accent: #2563eb;
+      --toolbar-h: 2.75rem;
+      --history-h: 2.75rem;
+      color-scheme: light;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141414;
+        --text: #e8e6e3;
+        --muted: #777;
+        --border: #2a2a2a;
+        --accent: #60a5fa;
+        color-scheme: dark;
+      }
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Monaco, Consolas, monospace;
+      font-size: 15px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: var(--toolbar-h);
+      padding: 0 1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      user-select: none;
+    }
+
+    .brand {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: -0.01em;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.25rem;
+    }
+
+    button {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--muted);
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 0.3rem 0.6rem;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+
+    button:hover {
+      color: var(--text);
+      background: var(--border);
+    }
+
+    button:active { transform: scale(0.97); }
+
+    button.copied { color: var(--accent); }
+
+    .stats {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.6875rem;
+      color: var(--muted);
+      min-width: 5rem;
+      text-align: right;
+    }
+
+    textarea {
+      display: block;
+      width: 100%;
+      height: calc(100% - var(--toolbar-h) - var(--history-h));
+      padding: 1.25rem 1.5rem;
+      border: none;
+      outline: none;
+      resize: none;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+      line-height: inherit;
+      caret-color: var(--accent);
+    }
+
+    textarea::placeholder {
+      color: var(--muted);
+      opacity: 0.6;
+    }
+
+    .history-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      height: var(--history-h);
+      padding: 0 1rem;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      min-width: 0;
+    }
+
+    .new-session-btn {
+      flex-shrink: 0;
+      width: 1.75rem;
+      height: 1.75rem;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      font-weight: 400;
+      line-height: 1;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+    }
+
+    .new-session-btn:hover {
+      color: var(--text);
+      border-color: var(--muted);
+    }
+
+    .new-session-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .history-label {
+      flex-shrink: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+
+    .history-list {
+      display: flex;
+      gap: 0.375rem;
+      overflow-x: auto;
+      min-width: 0;
+      flex: 1;
+      scrollbar-width: thin;
+    }
+
+    .history-list::-webkit-scrollbar { height: 4px; }
+    .history-list::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    .history-empty {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.75rem;
+      color: var(--muted);
+      opacity: 0.7;
+      white-space: nowrap;
+    }
+
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+      max-width: 16rem;
+      padding: 0.25rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.6875rem;
+      line-height: 1.3;
+    }
+
+    .history-item:hover {
+      border-color: var(--muted);
+    }
+
+    .history-item.active {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .history-preview {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .history-time {
+      flex-shrink: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: var(--muted);
+      font-size: 0.625rem;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: calc(var(--history-h) + 1rem);
+      left: 50%;
+      transform: translateX(-50%) translateY(0.5rem);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.8125rem;
+      color: var(--text);
+      background: var(--border);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <header class="toolbar">
+    <span class="brand">just a textarea</span>
+    <span class="stats" id="stats"></span>
+    <div class="actions">
+      <button type="button" id="copy-btn" title="Copy all (⌘C when focused)">Copy</button>
+      <button type="button" id="clear-btn" title="Clear">Clear</button>
+    </div>
+  </header>
+
+  <textarea
+    id="editor"
+    placeholder="Paste to strip formatting — plain text copies automatically"
+    spellcheck="false"
+    autofocus
+  ></textarea>
+
+  <footer class="history-bar">
+    <button type="button" class="new-session-btn active" id="new-session-btn" title="New session">+</button>
+    <span class="history-label">Recent</span>
+    <div class="history-list" id="history-list"></div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const STORAGE_KEY = 'jat-content';
+    const HISTORY_KEY = 'jat-history';
+    const AUTO_CLEAR_SECONDS = 10;
+    const MAX_HISTORY = 30;
+
+    const editor = document.getElementById('editor');
+    const stats = document.getElementById('stats');
+    const toast = document.getElementById('toast');
+    const copyBtn = document.getElementById('copy-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const historyList = document.getElementById('history-list');
+    const newSessionBtn = document.getElementById('new-session-btn');
+
+    let history = [];
+    let saveTimer;
+    let toastTimer;
+    let copyAfterPasteTimer;
+    let pastePending = false;
+    let autoClearInterval = null;
+    let autoClearSecondsLeft = 0;
+    let activeHistoryId = null;
+
+    function load() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) editor.value = saved;
+      } catch (_) {}
+
+      try {
+        const saved = localStorage.getItem(HISTORY_KEY);
+        if (saved) history = JSON.parse(saved);
+      } catch (_) {
+        history = [];
+      }
+      renderHistory();
+    }
+
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, editor.value);
+      } catch (_) {}
+    }
+
+    function saveHistory() {
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      } catch (_) {}
+    }
+
+    function updateStats() {
+      const text = editor.value;
+      const chars = text.length;
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      const lines = text ? text.split('\n').length : 0;
+      stats.textContent = `${words} words · ${chars.toLocaleString()} chars · ${lines} lines`;
+    }
+
+    function hideToast() {
+      toast.classList.remove('show');
+      clearTimeout(toastTimer);
+    }
+
+    function showToast(message, duration = 1800) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      if (duration > 0) {
+        toastTimer = setTimeout(hideToast, duration);
+      }
+    }
+
+    function preview(text) {
+      const line = text.replace(/\s+/g, ' ').trim();
+      return line.length > 72 ? line.slice(0, 72) + '…' : line;
+    }
+
+    function timeAgo(ts) {
+      const secs = Math.floor((Date.now() - ts) / 1000);
+      if (secs < 60) return 'now';
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return `${mins}m`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h`;
+      return `${Math.floor(hrs / 24)}d`;
+    }
+
+    function addToHistory(text) {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+
+      if (history[0]?.text === trimmed) {
+        history[0].ts = Date.now();
+      } else {
+        history.unshift({ id: crypto.randomUUID(), text: trimmed, ts: Date.now() });
+        if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
+      }
+      saveHistory();
+      renderHistory();
+    }
+
+    function updateSessionState() {
+      const isFresh = !activeHistoryId && !editor.value;
+      newSessionBtn.classList.toggle('active', isFresh);
+    }
+
+    function renderHistory() {
+      updateSessionState();
+      historyList.innerHTML = '';
+
+      if (!history.length) {
+        const empty = document.createElement('span');
+        empty.className = 'history-empty';
+        empty.textContent = 'Pasted text appears here';
+        historyList.appendChild(empty);
+        return;
+      }
+
+      for (const item of history) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'history-item' + (item.id === activeHistoryId ? ' active' : '');
+        btn.title = item.text;
+        btn.dataset.id = item.id;
+
+        const previewEl = document.createElement('span');
+        previewEl.className = 'history-preview';
+        previewEl.textContent = preview(item.text);
+
+        const timeEl = document.createElement('span');
+        timeEl.className = 'history-time';
+        timeEl.textContent = timeAgo(item.ts);
+
+        btn.append(previewEl, timeEl);
+        btn.addEventListener('click', () => selectHistoryItem(item.id));
+        historyList.appendChild(btn);
+      }
+    }
+
+    async function copyText(text) {
+      if (!text) return false;
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (_) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        return true;
+      }
+    }
+
+    function cancelAutoClear() {
+      if (autoClearInterval) {
+        clearInterval(autoClearInterval);
+        autoClearInterval = null;
+      }
+      autoClearSecondsLeft = 0;
+    }
+
+    function updateCountdownToast() {
+      toast.textContent = `Stripped & copied · auto-clearing in ${autoClearSecondsLeft}…`;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+    }
+
+    function startAutoClearCountdown() {
+      cancelAutoClear();
+      autoClearSecondsLeft = AUTO_CLEAR_SECONDS;
+      updateCountdownToast();
+
+      autoClearInterval = setInterval(() => {
+        autoClearSecondsLeft--;
+        if (autoClearSecondsLeft <= 0) {
+          cancelAutoClear();
+          clearEditor({ fromAutoClear: true });
+        } else {
+          updateCountdownToast();
+        }
+      }, 1000);
+    }
+
+    function clearEditor({ fromAutoClear = false } = {}) {
+      editor.value = '';
+      activeHistoryId = null;
+      save();
+      updateStats();
+      renderHistory();
+      if (fromAutoClear) {
+        showToast('Cleared');
+      }
+      editor.focus();
+    }
+
+    function startFreshSession() {
+      cancelAutoClear();
+      hideToast();
+      clearEditor();
+    }
+
+    async function selectHistoryItem(id) {
+      const item = history.find((h) => h.id === id);
+      if (!item) return;
+
+      cancelAutoClear();
+      hideToast();
+
+      activeHistoryId = id;
+      editor.value = item.text;
+      save();
+      updateStats();
+      renderHistory();
+
+      await copyText(item.text);
+      showToast('Copied from history');
+      editor.focus();
+    }
+
+    editor.addEventListener('paste', () => {
+      pastePending = true;
+      activeHistoryId = null;
+      renderHistory();
+      clearTimeout(copyAfterPasteTimer);
+      cancelAutoClear();
+      hideToast();
+
+      copyAfterPasteTimer = setTimeout(async () => {
+        const text = editor.value;
+        await copyText(text);
+        addToHistory(text);
+        pastePending = false;
+        startAutoClearCountdown();
+      }, 100);
+    });
+
+    editor.addEventListener('input', () => {
+      updateStats();
+      updateSessionState();
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(save, 300);
+
+      if (!pastePending && autoClearSecondsLeft > 0) {
+        cancelAutoClear();
+        hideToast();
+      }
+    });
+
+    newSessionBtn.addEventListener('click', startFreshSession);
+
+    copyBtn.addEventListener('click', async () => {
+      cancelAutoClear();
+      hideToast();
+      const copied = await copyText(editor.value);
+      if (!copied) return;
+      copyBtn.classList.add('copied');
+      copyBtn.textContent = 'Copied';
+      setTimeout(() => {
+        copyBtn.classList.remove('copied');
+        copyBtn.textContent = 'Copy';
+      }, 1500);
+    });
+
+    clearBtn.addEventListener('click', () => {
+      if (!editor.value) return;
+      if (!confirm('Clear all text?')) return;
+      cancelAutoClear();
+      hideToast();
+      clearEditor();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        cancelAutoClear();
+        hideToast();
+        clearEditor();
+      }
+    });
+
+    load();
+    updateStats();
+    editor.focus();
+  </script>
+</body>
+</html>
