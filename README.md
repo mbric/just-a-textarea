@@ -68,3 +68,7 @@ After deploying to Cloudflare Pages or Netlify:
 |----------|--------|
 | ⌘/Ctrl + K | Clear all text |
 | ⌘/Ctrl + C | Copy (when textarea is focused) |
+
+## License
+
+MIT. See [LICENSE](LICENSE).
